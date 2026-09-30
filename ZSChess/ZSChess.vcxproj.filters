@@ -1,0 +1,163 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{7efd574c-e572-4a2e-9574-d8f5b19a5015}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\class">
+      <UniqueIdentifier>{af75a745-347b-4195-9270-299896370435}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\myai">
+      <UniqueIdentifier>{490d6ce7-1562-41a9-8e68-86d1465ffac6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="framework.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ZSChess.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CZSChessWin.h">
+      <Filter>src\class</Filter>
+    </ClInclude>
+    <ClInclude Include="CQiPan.h">
+      <Filter>src\class</Filter>
+    </ClInclude>
+    <ClInclude Include="CChessPiece.h">
+      <Filter>src\class</Filter>
+    </ClInclude>
+    <ClInclude Include="CPieceMng.h">
+      <Filter>src\class</Filter>
+    </ClInclude>
+    <ClInclude Include="CAIPlayer.h">
+      <Filter>src\class</Filter>
+    </ClInclude>
+    <ClInclude Include="TextAnim.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ThreadPool.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="AIConfigDlg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="AIConfigBridge.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CAICalcAnimal.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="AI\EngineBridge.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CAIEng.h">
+      <Filter>src\class</Filter>
+    </ClInclude>
+    <ClInclude Include="types.h">
+      <Filter>src\myai</Filter>
+    </ClInclude>
+    <ClInclude Include="position.h">
+      <Filter>src\myai</Filter>
+    </ClInclude>
+    <ClInclude Include="zobrist.h">
+      <Filter>src\myai</Filter>
+    </ClInclude>
+    <ClInclude Include="tt.h">
+      <Filter>src\myai</Filter>
+    </ClInclude>
+    <ClInclude Include="evaluate.h">
+      <Filter>src\myai</Filter>
+    </ClInclude>
+    <ClInclude Include="search.h">
+      <Filter>src\myai</Filter>
+    </ClInclude>
+    <ClInclude Include="thread.h">
+      <Filter>src\myai</Filter>
+    </ClInclude>
+    <ClInclude Include="CZSAIPlayer.h">
+      <Filter>src\myai</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ZSChess.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CZSChessWin.cpp">
+      <Filter>src\class</Filter>
+    </ClCompile>
+    <ClCompile Include="CQiPan.cpp">
+      <Filter>src\class</Filter>
+    </ClCompile>
+    <ClCompile Include="CPieceMng.cpp">
+      <Filter>src\class</Filter>
+    </ClCompile>
+    <ClCompile Include="CChessPiece.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="TextAnim.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ThreadPool.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="AIConfigDlg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CAICalcAnimal.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="zobrist.cpp">
+      <Filter>src\myai</Filter>
+    </ClCompile>
+    <ClCompile Include="tt.cpp">
+      <Filter>src\myai</Filter>
+    </ClCompile>
+    <ClCompile Include="evaluate.cpp">
+      <Filter>src\myai</Filter>
+    </ClCompile>
+    <ClCompile Include="search.cpp">
+      <Filter>src\myai</Filter>
+    </ClCompile>
+    <ClCompile Include="uci.cpp">
+      <Filter>src\myai</Filter>
+    </ClCompile>
+    <ClCompile Include="position.cpp">
+      <Filter>src\myai</Filter>
+    </ClCompile>
+    <ClCompile Include="thread.cpp">
+      <Filter>src\myai</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ZSChess.rc">
+      <Filter>资源文件</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="small.ico">
+      <Filter>资源文件</Filter>
+    </Image>
+    <Image Include="ZSChess.ico">
+      <Filter>资源文件</Filter>
+    </Image>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="ZSChess/ZSChess.vcxproj" Id="f9011b0c-cf48-4462-b834-296fddfaf3bc" />
+</Solution>
