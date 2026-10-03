@@ -13,12 +13,68 @@ CChessPiece* CPieceMng::FindPiece(int col, int row) {
 	}
 	return nullptr;
 }
+void CPieceMng::DrawPieceXieXian(HDC hdc, int startX, int startY, int cellSize, CChessPiece*Ppiece) {
+	auto& piece = *Ppiece;
+ switch (piece.GetType()) {
 
+            case PT_SHI:;
+            case PT_JUN:;
+            case PT_DU:
+            {
+
+                auto x = PSF::CChessRule::ListCanGotoPos(&piece, PSF::CChessRule::GetPieceAtFunc(
+                    [](int col, int row, void* userData) -> CChessPiece* {
+                        return static_cast<CChessPiece*>( ((CPieceMng*)userData )->FindPiece(col, row));
+                    }), this);
+                DWORD style[2] = { 1, 3};      // {实段长, 空段长}，可多组交替
+                LOGBRUSH lb = { BS_SOLID, RGB(0,0,100), 0};
+
+                HPEN hPen = ExtCreatePen(PS_GEOMETRIC | PS_USERSTYLE | PS_ENDCAP_FLAT,
+                    2, &lb, 2, style);
+
+
+				//HPEN hPen = CreatePen(PS_DASHDOTDOT, 3, RGB(0, 25, 0));
+				auto hOldPen = (HPEN)SelectObject(hdc, hPen);
+
+                for (auto& ix : x) {
+                    int col = ix.col;
+                    int row = ix.row;
+                    //计算当前柜子与目标位置是否是斜线
+                    if ((abs(col - piece.GetX()) ==   abs(row - piece.GetY()) ) && (abs(col - piece.GetX())>1)) {
+                        //绘制斜线
+
+                        int boardStartX = startX + piece.GetX() * cellSize - cellSize / 2;
+                        int boardStartY = startY + piece.GetY() * cellSize - cellSize / 2;
+                        int centerX = boardStartX + cellSize / 2;
+                        int centerY = boardStartY + cellSize / 2;
+
+
+                        int sX = centerX;// +(col - piece.GetX()) * cellSize;
+                        int sY = centerY;// +(row - piece.GetY()) * cellSize;
+
+						boardStartX = startX + col * cellSize - cellSize / 2;
+						boardStartY = startY + row * cellSize - cellSize / 2;
+						centerX = boardStartX + cellSize / 2;
+						centerY = boardStartY + cellSize / 2;
+
+                        int endX = centerX ;
+                        int endY = centerY ;
+                        MoveToEx(hdc, sX, sY, NULL);
+                        LineTo(hdc, endX, endY);
+                    }
+                }
+				SelectObject(hdc, hOldPen);
+				DeleteObject(hPen);
+            }
+            break;
+            }
+}
 void CPieceMng::DrawPieces(HDC hdc, int startX, int startY, int cellSize)
 {
     // 如果有动画正在进行，优先绘制其他棋子，最后绘制移动中的棋子
     if (!m_isAnimating) {
         for (auto& piece : m_pieces) {
+			DrawPieceXieXian(hdc, startX, startY, cellSize, &piece);
             piece.Draw(hdc, startX, startY, cellSize);
         }
         return;
@@ -44,6 +100,8 @@ void CPieceMng::DrawPieces(HDC hdc, int startX, int startY, int cellSize)
     // draw all except animating piece (by index)
     for (int i = 0; i < (int)m_pieces.size(); ++i) {
         if (i == m_animPieceIdx) continue;
+        
+		DrawPieceXieXian(hdc, startX, startY, cellSize, &m_pieces[i]);
         m_pieces[i].Draw(hdc, startX, startY, cellSize);
     }
 

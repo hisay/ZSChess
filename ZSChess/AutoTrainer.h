@@ -16,6 +16,7 @@
 #include "thread.h"
 #include "evaluate.h"
 #include "NNLib.h"
+#include "Book.h"
 
 class AutoTrainer {
 public:

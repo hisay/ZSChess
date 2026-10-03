@@ -39,10 +39,10 @@ inline const wchar_t* TierName(AITier t) {
 
 // 等级参数预设：内建默认值，由 AIConfigDlg::LoadConfig 从 ini [level0..5] 段覆盖
 struct TierPresets {
-    bool useTier = false;         // 勾选"使用AI等级"：等级参数直接生效
-    int depth[6]   = { 3, 5, 8, 12, 16, 20 };
-    int timeMs[6]  = { 400, 700, 1200, 2000, 3500, 5000 };
-    int threads[6] = { 1, 1, 2, 4, 6, 8 };
+    bool useTier = true;         // 勾选"使用AI等级"：等级参数直接生效
+    int depth[6]   = { 3, 5, 8, 12, 18, 24 };
+    int timeMs[6]  = { 5000, 8000, 14200, 20000, 33500, 45000 };
+    int threads[6] = { 1, 3, 7, 12, 18, 24 };
 };
 
 // 全局等级参数源（ini 读入 / 默认）

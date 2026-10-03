@@ -1,125 +1,172 @@
-﻿// Book.cpp
+﻿// Book.cpp — 二进制分级着法库实现
 #include "Book.h"
-#include "position.h"
+#include <windows.h>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <string>
-#include <vector>
-#include <sys/stat.h>
-#include <io.h>
+#include <cstdint>
 #include <direct.h>
+#include <sys/stat.h>
 
 namespace zschess {
 
-    // 解析 UCI 风格走法字符串（如 "a0b0" = (0,0)->(1,0)）；非法返回 MOVE_NONE
-    static Move ParseMoveString(const char* s) {
-        if (!s || strlen(s) < 4) return MOVE_NONE;
-        auto sq = [](char a, char b) -> int {
-            int x = a - 'a';
-            int y = b - '0';
-            if (x < 0 || x > 10 || y < 0 || y > 10) return -1;
-            return make_square(x, y);
-        };
-        int f = sq(s[0], s[1]);
-        int t = sq(s[2], s[3]);
-        if (f < 0 || t < 0) return MOVE_NONE;
-        return make_move((Square)f, (Square)t);
+    static_assert(sizeof(Book::Entry) == 8, "Book::Entry must be 8 bytes");
+
+    namespace {
+        constexpr char MAGIC[4] = { 'Z', 'S', 'B', 'K' };
+        constexpr uint16_t VERSION = 1;
+
+        int clampTier(int t) { return t < 0 ? 0 : (t > 5 ? 5 : t); }
+        int16_t clampScore(int s) {
+            if (s > 32000) return 32000;
+            if (s < -32000) return -32000;
+            return (int16_t)s;
+        }
+        int8_t clampDepth(int d) {
+            if (d < 0) return 0;
+            if (d > 127) return 127;
+            return (int8_t)d;
+        }
+        uint8_t satVisits(uint8_t v) { return v < 255 ? (uint8_t)(v + 1) : 255; }
     }
 
     Book& Book::instance() {
-        static Book b;
-        return b;
-    }
-
-    void Book::load(const std::string& path) {
-        FILE* f = nullptr;
-        if (fopen_s(&f, path.c_str(), "r") != 0 || !f) return;
-        std::lock_guard<std::mutex> lk(m_mutex);
-        char line[256];
-        while (fgets(line, sizeof(line), f)) {
-            if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
-            unsigned long long h = 0;
-            char mv[16] = { 0 };
-            int score = 0, depth = 0, visits = 0, wins = 0;
-            if (sscanf_s(line, "%llu %15s %d %d %d %d", &h, mv, (unsigned)sizeof(mv),
-                &score, &depth, &visits, &wins) >= 4) {
-                Move m = ParseMoveString(mv);
-                if (m == MOVE_NONE) continue;
-                Entry e; e.move = m; e.score = score; e.depth = depth;
-                e.visits = visits > 0 ? visits : 1; e.wins = wins;
-                m_entries[(uint64_t)h] = e;
+        static Book* p = nullptr;
+        static std::mutex gate;
+        if (!p) {
+            std::lock_guard<std::mutex> lk(gate);
+            if (!p) {
+                Book* q = new Book();
+                q->load_all();   // 首次访问自动加载已有二进制着法库
+                p = q;
             }
         }
-        fclose(f);
+        return *p;
     }
 
-    void Book::save(const std::string& path) const {
-        // 确保目录存在
-        std::string dir = path;
-        size_t slash = dir.find_last_of("/\\");
-        if (slash != std::string::npos) {
-            std::string d = dir.substr(0, slash);
-            if (!d.empty()) _mkdir(d.c_str());
+    std::string Book::Dir() {
+        char buf[512] = { 0 };
+        GetModuleFileNameA(nullptr, buf, 512);
+        std::string p(buf);
+        size_t slash = p.find_last_of("/\\");
+        if (slash != std::string::npos) p = p.substr(0, slash);
+        return p + "\\book";
+    }
+
+    std::string Book::Path(int tier) {
+        return Dir() + "\\book_tier" + std::to_string(clampTier(tier)) + ".bin";
+    }
+
+    void Book::load_all() {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        for (int t = 0; t < TIERS; t++) {
+            FILE* f = nullptr;
+            if (fopen_s(&f, Path(t).c_str(), "rb") != 0 || !f) continue;
+            char magic[4] = { 0 };
+            uint16_t version = 0;
+            uint32_t count = 0;
+            if (fread(magic, 1, 4, f) == 4 && memcmp(magic, MAGIC, 4) == 0 &&
+                fread(&version, sizeof(version), 1, f) == 1 && version == VERSION &&
+                fread(&count, sizeof(count), 1, f) == 1) {
+                auto& map = m_tiers[t];
+                map.reserve((size_t)count + map.size());
+                for (uint32_t i = 0; i < count; i++) {
+                    uint64_t key = 0;
+                    Entry e;
+                    if (fread(&key, sizeof(key), 1, f) != 1 ||
+                        fread(&e, sizeof(e), 1, f) != 1) break;
+                    map[key] = e;
+                }
+            }
+            fclose(f);
         }
+    }
+
+    void Book::save_tier(int tier) const {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        int t = clampTier(tier);
+        std::string dir = Dir();
+        _mkdir(dir.c_str());   // 已存在返回 -1，忽略
         FILE* f = nullptr;
-        if (fopen_s(&f, path.c_str(), "w") != 0 || !f) return;
-        std::lock_guard<std::mutex> lk(m_mutex);
-        fprintf(f, "# ZSChess book v1  hash move score depth visits wins\n");
-        for (auto& kv : m_entries) {
-            const Entry& e = kv.second;
-            std::string mv = Position::move_to_string(e.move);
-            fprintf(f, "%llu %s %d %d %d %d\n", (unsigned long long)kv.first,
-                mv.c_str(), e.score, e.depth, e.visits, e.wins);
+        if (fopen_s(&f, Path(t).c_str(), "wb") != 0 || !f) return;
+        const auto& map = m_tiers[t];
+        uint32_t count = (uint32_t)map.size();
+        fwrite(MAGIC, 1, 4, f);
+        fwrite(&VERSION, sizeof(VERSION), 1, f);
+        fwrite(&count, sizeof(count), 1, f);
+        for (const auto& kv : map) {
+            fwrite(&kv.first, sizeof(kv.first), 1, f);
+            fwrite(&kv.second, sizeof(kv.second), 1, f);
         }
         fclose(f);
     }
 
-    bool Book::probe(uint64_t hash, Move& best, int& score, int& depth) const {
+    void Book::save_all() const {
+        for (int t = 0; t < TIERS; t++) {
+            bool nonempty;
+            { std::lock_guard<std::mutex> lk(m_mutex); nonempty = !m_tiers[t].empty(); }
+            if (nonempty) save_tier(t);
+        }
+    }
+
+    bool Book::probe(uint64_t key, int fromTier, Move& move, int& score, int& depth, int& tierFound) const {
         std::lock_guard<std::mutex> lk(m_mutex);
-        auto it = m_entries.find(hash);
-        if (it == m_entries.end()) return false;
-        best = it->second.move;
+        int lo = clampTier(fromTier);
+        for (int t = TIERS - 1; t >= lo; t--) {
+            auto it = m_tiers[t].find(key);
+            if (it != m_tiers[t].end()) {
+                move = (Move)it->second.move;
+                score = it->second.score;
+                depth = it->second.depth;
+                tierFound = t;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool Book::probe_exact(uint64_t key, int tier, Move& move, int& score, int& depth) const {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        auto it = m_tiers[clampTier(tier)].find(key);
+        if (it == m_tiers[clampTier(tier)].end()) return false;
+        move = (Move)it->second.move;
         score = it->second.score;
         depth = it->second.depth;
         return true;
     }
 
-    void Book::add(uint64_t hash, Move m, int score, int depth) {
-        if (m == MOVE_NONE) return;
+    void Book::add(uint64_t key, int tier, Move move, int score, int depth) {
+        if (move == MOVE_NONE) return;
         std::lock_guard<std::mutex> lk(m_mutex);
-        auto it = m_entries.find(hash);
-        if (it == m_entries.end()) {
-            Entry e; e.move = m; e.score = score; e.depth = depth; e.visits = 1; e.wins = 0;
-            m_entries[hash] = e;
+        auto& map = m_tiers[clampTier(tier)];
+        auto it = map.find(key);
+        if (it == map.end()) {
+            Entry e; e.move = (uint32_t)move; e.score = clampScore(score);
+            e.depth = clampDepth(depth); e.visits = 1;
+            map[key] = e;
         } else {
             Entry& e = it->second;
-            if (e.move == m) {
-                e.visits++;
-                if (depth > e.depth) { e.depth = depth; e.score = score; }
-            } else if (depth >= e.depth) {
-                // 更深搜索覆盖旧走法；浅层则不覆盖（保守）
-                e.move = m; e.score = score; e.depth = depth; e.visits++;
+            if (e.move == (uint32_t)move) {
+                e.visits = satVisits(e.visits);
+                if (depth > (int)e.depth) { e.depth = clampDepth(depth); e.score = clampScore(score); }
+            } else if (depth >= (int)e.depth) {
+                uint8_t keepV = e.visits;
+                e.move = (uint32_t)move; e.score = clampScore(score); e.depth = clampDepth(depth);
+                e.visits = satVisits(keepV - 1);
             } else {
-                e.visits++; // 浅层同局面走不同棋：仅累计该走法次数（不覆盖主条目）
+                e.visits = satVisits(e.visits);
             }
         }
     }
 
-    void Book::learn(uint64_t hash, Move m, bool moveSideWon) {
-        if (m == MOVE_NONE || !moveSideWon) return;
+    size_t Book::size(int tier) const {
         std::lock_guard<std::mutex> lk(m_mutex);
-        auto it = m_entries.find(hash);
-        if (it == m_entries.end()) return;
-        if (it->second.move == m) it->second.wins++;
+        return m_tiers[clampTier(tier)].size();
     }
 
-    bool Book::usable(uint64_t hash, int reqDepth) const {
+    size_t Book::size_all() const {
         std::lock_guard<std::mutex> lk(m_mutex);
-        auto it = m_entries.find(hash);
-        if (it == m_entries.end()) return false;
-        if (reqDepth <= 0) return true;
-        return it->second.depth * 10 >= reqDepth * 7; // 库深度 >= 请求深度 70%
+        size_t n = 0;
+        for (const auto& m : m_tiers) n += m.size();
+        return n;
     }
 
 } // namespace zschess

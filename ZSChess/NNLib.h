@@ -16,8 +16,8 @@
 
 namespace zschess {
 
-// 启用网络查询的最低样本数（网络成熟后才优先于引擎）
-constexpr int NN_MIN_QUERY_SAMPLES = 2000;
+// 启用网络查询的最低样本数（镜像展开后计数；一局约 600-1000，一局多即成熟）
+constexpr int NN_MIN_QUERY_SAMPLES = 600;
 // 训练缓冲大小（达到后批量梯度下降）
 constexpr int NN_BATCH_SIZE = 64;
 // 网络文件目录（相对 exe 工作目录）

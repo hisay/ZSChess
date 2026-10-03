@@ -13,10 +13,12 @@ static inline float clip01(float v, float hi) { return v < 0.f ? 0.f : (v > hi ?
 
 void NNModel::Init() {
     std::mt19937 rng(0x5EED);
-    std::normal_distribution<float> nd(0.f, 0.1f);
     embed_.resize((size_t)NN_FEATURE_NB * NN_EMBED);
+    // 累积器 = bias + Σ 每方约 10-12 个活跃嵌入列。令嵌入列 std≈1/sqrt(11)≈0.30，
+    // 使累积器方差保持在 ~1（旧值 std≈0.0044 导致累积器仅 ~0.015，信号逐层衰减、梯度消失）。
+    std::normal_distribution<float> emb(0.f, 0.28f);
     for (size_t i = 0; i < embed_.size(); i++)
-        embed_[i] = nd(rng) * 0.5f / (float)std::sqrt((double)NN_EMBED);
+        embed_[i] = emb(rng);
     for (int i = 0; i < NN_EMBED; i++) bias_[i] = 0.f;
     W1_.resize((size_t)NN_HID1 * NN_INPUT);
     b1_.assign(NN_HID1, 0.f);
@@ -24,9 +26,13 @@ void NNModel::Init() {
     b2_.assign(NN_HID2, 0.f);
     W3_.assign(NN_HID2, 0.f);
     b3_.assign(1, 0.f);
-    for (size_t i = 0; i < W1_.size(); i++) W1_[i] = nd(rng) * 0.5f / (float)std::sqrt((double)NN_INPUT);
-    for (size_t i = 0; i < W2_.size(); i++) W2_[i] = nd(rng) * 0.5f / (float)std::sqrt((double)NN_HID1);
-    for (int i = 0; i < NN_HID2; i++) W3_[i] = nd(rng) * 0.1f;
+    // ReLU 层用 He 初始化保持方差；输出为线性，用 Xavier（不补偿 ReLU 的 2）。
+    std::normal_distribution<float> he1(0.f, std::sqrt(2.0f / (float)NN_INPUT));
+    for (size_t i = 0; i < W1_.size(); i++) W1_[i] = he1(rng);
+    std::normal_distribution<float> he2(0.f, std::sqrt(2.0f / (float)NN_HID1));
+    for (size_t i = 0; i < W2_.size(); i++) W2_[i] = he2(rng);
+    std::normal_distribution<float> xav3(0.f, std::sqrt(1.0f / (float)NN_HID2));
+    for (int i = 0; i < NN_HID2; i++) W3_[i] = xav3(rng);
     samples_ = 0;
 }
 
@@ -103,6 +109,9 @@ void NNModel::TrainSample(const int* actRed, int nRed, const int* actBlack, int 
 
     float err = (out - target);
     float g3 = 2.f * err;
+    // 梯度裁剪：极端目标/大误差时防止权重更新爆炸（NaN）。归一化目标已在调用方裁剪到 ±1。
+    if (g3 > 2.0f) g3 = 2.0f;
+    if (g3 < -2.0f) g3 = -2.0f;
 
     // ---- 输出层 ----
     for (int i = 0; i < NN_HID2; i++) W3_[i] -= lr * g3 * h2[i];

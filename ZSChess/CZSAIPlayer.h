@@ -15,6 +15,7 @@
 #include "zobrist.h"
 #include "thread.h"
 #include "NNLib.h"
+#include "Book.h"
 #include "RepetitionGuard.h"
 #include <vector>
 #include <functional>
@@ -44,17 +45,13 @@ public:
         int tier = GetConfiguredAITier();
         if (tier < 0) tier = 0; if (tier > 5) tier = 5;
 
-        // 神经网络优先：先查最高等级（特级）网络库，命中直接出棋（毫秒级，等级再低也能走出最高水平）
+        // 精确着法库优先：相同局面【命中本级库】直接出棋，微秒~毫秒级，无需重算。
         {
-            float nsc = 0;
-            zschess::Move nbm = zschess::NNLib::instance().PickMove(pos, tier, true, nsc);
-            if (nbm != zschess::MOVE_NONE && pos.is_legal(nbm) && !IsLongCheckBlunder(pos, nbm) && !IsLongChaseBlunder(pos, nbm)) {
-                // 局面和分值入库（红方视角）：只写当前选择的等级，各级独立
-                float red = (pos.side_to_move() == zschess::RED) ? nsc : -nsc;
-                zschess::NNLib::instance().TrainSample(tier, pos, red);
-                return { ToPos(zschess::move_from(nbm)), ToPos(zschess::move_to(nbm)) };
+            zschess::Move bm; int bsc = 0, bdep = 0;
+            if (zschess::Book::instance().probe_exact(pos.hash(), tier, bm, bsc, bdep)
+                && pos.is_legal(bm) && !IsLongCheckBlunder(pos, bm) && !IsLongChaseBlunder(pos, bm)) {
+                return { ToPos(zschess::move_from(bm)), ToPos(zschess::move_to(bm)) };
             }
-            // 长将命中：不能走连将循环，近落到引擎搜索
         }
 
         zschess::SearchLimits limits = MakeLimitsFromTier(tc);
@@ -68,7 +65,7 @@ public:
             if (alt != zschess::MOVE_NONE) best = alt;
         }
 
-        // 搜索后在线学习：把 (u5c40面, 红方视角分值) 喂给当前等级网络
+        // 搜索后在线学习：把 (局面, 红方视角分值) 喂给当前等级网络
         if (best != zschess::MOVE_NONE) {
             int sc = zschess::ThreadPool::instance().last_score();
             if (color == BLACK) sc = -sc;
@@ -77,6 +74,8 @@ public:
             if (aft.do_move(best)) {
                 zschess::NNLib::instance().TrainSample(tier, aft, (float)sc);
             }
+            // 精确着法库入库（只写当前等级，红方视角分）
+            zschess::Book::instance().add(pos.hash(), tier, best, sc, limits.depth);
         }
 
         // 低等级扰动：模拟人类失误（按概率随机合法走法）
@@ -111,16 +110,13 @@ public:
 
         auto fut = std::async(std::launch::async, [token, pos, limits, tc, tier]() mutable -> std::pair<PSF::POS, PSF::POS> {
             if (token && token->load()) return { PSF::POS(-1, -1), PSF::POS(-1, -1) };
-            // 神经网络优先：先查最高等级（特级）网络库
+            // 精确着法库优先：相同局面【命中本级库】直接出棋
             {
-                float nsc = 0;
-                zschess::Move nbm = zschess::NNLib::instance().PickMove(pos, tier, true, nsc);
-                if (nbm != zschess::MOVE_NONE && pos.is_legal(nbm) && !IsLongCheckBlunder(pos, nbm) && !IsLongChaseBlunder(pos, nbm)) {
-                    float red = (pos.side_to_move() == zschess::RED) ? nsc : -nsc;
-                    zschess::NNLib::instance().TrainSample(tier, pos, red);
-                    return { ToPos(zschess::move_from(nbm)), ToPos(zschess::move_to(nbm)) };
+                zschess::Move bm; int bsc = 0, bdep = 0;
+                if (zschess::Book::instance().probe_exact(pos.hash(), tier, bm, bsc, bdep)
+                    && pos.is_legal(bm) && !IsLongCheckBlunder(pos, bm) && !IsLongChaseBlunder(pos, bm)) {
+                    return { ToPos(zschess::move_from(bm)), ToPos(zschess::move_to(bm)) };
                 }
-                // 长将命中：落到引擎
             }
             zschess::Move best = zschess::ThreadPool::instance().start_search(pos, limits);
             // 长将防护：搜索最优若构成连将循环，强制变招
@@ -138,6 +134,7 @@ public:
                 if (aft.do_move(best)) {
                     zschess::NNLib::instance().TrainSample(tier, aft, (float)sc);
                 }
+                zschess::Book::instance().add(pos.hash(), tier, best, sc, limits.depth);
             }
             // 低等级扰动
             if (best != zschess::MOVE_NONE && tc.noiseProb > 0 && (rand() % 100) < tc.noiseProb) {

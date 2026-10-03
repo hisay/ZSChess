@@ -248,6 +248,8 @@ namespace zschess {
                         else { leg_x = x; leg_y = y + (sy > y ? 1 : -1); }
                         if (piece_on(leg_x, leg_y) == EMPTY) return true;
                     }
+                    // 升级：目字大跳（直3横1 / 直1横3），不蹩腿
+                    if ((dx == 3 && dy == 1) || (dx == 1 && dy == 3)) return true;
                     break;
                 }
                 case JUN: {
@@ -395,6 +397,8 @@ namespace zschess {
                         else { leg_x = x; leg_y = y + (sy > y ? 1 : -1); }
                         if (piece_on(leg_x, leg_y) == EMPTY) return true;
                     }
+                    // 升级：目字大跳，不蹩腿
+                    if ((dx == 3 && dy == 1) || (dx == 1 && dy == 3)) return true;
                     break;
                 }
                 case JUN: {
@@ -551,6 +555,21 @@ namespace zschess {
             int lx = x + dirs[d][2];
             int ly = y + dirs[d][3];
             if (board[make_square(lx, ly)] != EMPTY) continue; // 蹩马腿
+            Square to = make_square(nx, ny);
+            Piece target = board[to];
+            if (target == EMPTY || piece_color(target) != C) {
+                ml[idx++] = make_move(from, to, target, p);
+            }
+        }
+        // 升级：目字大跳（直3横1 / 直1横3），不受蹩腿限制，纯跳跃不越子判定
+        const int mu_dirs[8][2] = {
+            {3, 1}, {3, -1}, {-3, 1}, {-3, -1},
+            {1, 3}, {1, -3}, {-1, 3}, {-1, -3}
+        };
+        for (int d = 0; d < 8; d++) {
+            int nx = x + mu_dirs[d][0];
+            int ny = y + mu_dirs[d][1];
+            if (!is_valid_square(nx, ny)) continue;
             Square to = make_square(nx, ny);
             Piece target = board[to];
             if (target == EMPTY || piece_color(target) != C) {

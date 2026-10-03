@@ -167,6 +167,7 @@
     <ClInclude Include="AutoTrainer.h" />
     <ClInclude Include="NNLib.h" />
     <ClInclude Include="NNModel.h" />
+    <ClInclude Include="Book.h" />
     <ClInclude Include="TrainConfigDlg.h" />
   </ItemGroup>
   <ItemGroup>
@@ -174,6 +175,7 @@
     <ClCompile Include="AutoTrainer.cpp" />
     <ClCompile Include="NNLib.cpp" />
     <ClCompile Include="NNModel.cpp" />
+    <ClCompile Include="Book.cpp" />
     <ClCompile Include="CAICalcAnimal.cpp" />
     <ClCompile Include="CChessPiece.cpp" />
     <ClCompile Include="CGameRecord.cpp" />

@@ -37,7 +37,7 @@ public:
 		this->ClearRec();
 	}
 	void DrawPieces(HDC hdc, int startX, int startY, int cellSize);
-
+	void DrawPieceXieXian(HDC hdc, int startX, int startY, int cellSize, CChessPiece* piece);
 	// 动画控制接口
 	// 发起一个从 piece -> (toCol,toRow) 的行子动画，动画结束后才会真正移除目标棋子
 	void StartMoveAnimation(CChessPiece* piece, int toCol, int toRow);

@@ -18,10 +18,22 @@ static inline bool NNFileExists(const std::string& p) {
 // 行/列粗分桶（王位 4 位 one-hot 编码用）
 static inline int bucket4(int v) { return v < 3 ? 0 : v < 6 ? 1 : v < 9 ? 2 : 3; }
 
+// centipawn 目标 → 网络归一化目标并裁剪到 ±1：
+// 杀棋等极端分（/NN_SCALE 可达 ±3.9）不污染网络，杀棋精度由搜索/着法选择保证。
+static inline float norm_target(float centi) {
+    float t = centi / NN_SCALE;
+    return t > 1.f ? 1.f : (t < -1.f ? -1.f : t);
+}
+
 NNLib::NNLib() {
-    char buf[512];
-    GetCurrentDirectoryA(512, buf);
-    libDir_ = std::string(buf) + "\\" + NN_LIB_DIR;
+    // 固定以【exe 所在目录】为基准（不依赖 GetCurrentDirectory），
+    // 保证从 VS / 双击 / 命令行启动时 nn_lib 路径一致、训练与加载不会错位。
+    char buf[512] = { 0 };
+    GetModuleFileNameA(nullptr, buf, 512);
+    std::string p(buf);
+    size_t slash = p.find_last_of("/\\");
+    if (slash != std::string::npos) p = p.substr(0, slash);
+    libDir_ = p + "\\" + NN_LIB_DIR;
 }
 
 std::string NNLib::Path(int tier) const {
@@ -72,7 +84,8 @@ void NNLib::BuildFeatures(const Position& pos, int* actRed, int& nRed,
 
 float NNLib::DecayLr(int tier) {
     int s = models_[tier].Samples();
-    return 0.05f / (1.0f + (float)s * 0.00002f);
+    // He 初始化后方差≈1，实测稳定 lr 区间约 0.002~0.008；取 0.006 并随累计样本温和衰减。
+    return 0.006f / (1.0f + (float)s * 0.00005f);
 }
 
 bool NNLib::Evaluate(int tier, const Position& pos, float& score, bool& ok) {
@@ -108,9 +121,9 @@ Move NNLib::Greedy1Ply(const Position& pos, const NNModel& m, float& bestScore, 
         NNAccumulator acc;
         m.AccumulateFull(0, actR, nr, acc.v[0]);
         m.AccumulateFull(1, actB, nb, acc.v[1]);
-        float v = m.Forward(acc.v, kf); // 网络输出 = 红方视角
-        // 我方视角：走棋方是红 → 直接 v；黑 → -v
-        float mine = (pos.side_to_move() == RED) ? v : -v;
+        float vCent = m.Forward(acc.v, kf) * NN_SCALE; // 红方视角 centipawn
+        // 走棋方视角 centipawn：红直接，黑取反
+        float mine = (pos.side_to_move() == RED) ? vCent : -vCent;
         // 静态评估（红方视角）
         int es = Eval::evaluate(p2);                 // p2.stm（走子后对方）视角
         if (p2.side_to_move() == BLACK) es = -es;    // 转红方视角
@@ -139,7 +152,7 @@ Move NNLib::PickMove(const Position& pos, int myTier, bool preferTop, float& sco
     for (int t = 5; t >= 0; t--) {
         bool dup = false;
         for (int i = 0; i < cnt; i++) if (order[i] == t) dup = true;
-        if (!dup) order[cnt++] = t;
+        if (!dup && t>myTier) order[cnt++] = t;
     }
 
     for (int i = 0; i < cnt; i++) {
@@ -202,7 +215,7 @@ void NNLib::TrainSample(int tier, const Position& pos, float redScore) {
         for (const auto& ps : pending_[tier])
             models_[tier].TrainSample(ps.actRed.data(), (int)ps.actRed.size(),
                                       ps.actBlack.data(), (int)ps.actBlack.size(),
-                                      ps.kingFeat, ps.target / NN_SCALE, lr);
+                                      ps.kingFeat, norm_target(ps.target), lr);
         pending_[tier].clear();
     }
 }
@@ -218,7 +231,7 @@ int NNLib::FlushTrain(int tier, int epochs) {
         for (const auto& ps : pending_[tier])
             models_[tier].TrainSample(ps.actRed.data(), (int)ps.actRed.size(),
                                       ps.actBlack.data(), (int)ps.actBlack.size(),
-                                      ps.kingFeat, ps.target / NN_SCALE, lr);
+                                      ps.kingFeat, norm_target(ps.target), lr);
     }
     pending_[tier].clear();
     return models_[tier].Samples();

@@ -389,10 +389,14 @@ namespace PSF {
         {
             int dc = abs(tc - fc);
             int dr = abs(tr - fr);
-            if (!((dc == 1 && dr == 2) || (dc == 2 && dr == 1)))
+            bool isRi = ((dc == 1 && dr == 2) || (dc == 2 && dr == 1));
+            bool isMu = ((dc == 3 && dr == 1) || (dc == 1 && dr == 3));
+            if (!isRi && !isMu)
                 return false;
+            if (isMu)
+                return true; // 目字大跳：不蹩腿、不越子，直接可达
 
-            // 检查蹩马腿
+            // 日字：检查蹩马腿
             if (getPieceAt)
             {
                 int legCol = fc, legRow = fr;
@@ -424,6 +428,25 @@ namespace PSF {
                 if (getPieceAt && getPieceAt(legCol, legRow, userData))
                     continue;
                 // 检查目标位置
+                if (getPieceAt)
+                {
+                    CChessPiece* p = getPieceAt(nc, nr, userData);
+                    if (p && p->GetColor() == color)
+                        continue;
+                }
+                out.emplace_back(nc, nr);
+            }
+
+            // 升级：目字大跳（直3横1 / 直1横3），不蹩腿、不越子
+            int mu[8][2] = {
+                {3, 1}, {3, -1}, {-3, 1}, {-3, -1},
+                {1, 3}, {1, -3}, {-1, 3}, {-1, -3}
+            };
+            for (auto& m2 : mu)
+            {
+                int nc = col + m2[0];
+                int nr = row + m2[1];
+                if (!IsInBoard(nc, nr)) continue;
                 if (getPieceAt)
                 {
                     CChessPiece* p = getPieceAt(nc, nr, userData);

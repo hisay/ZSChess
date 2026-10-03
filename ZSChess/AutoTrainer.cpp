@@ -143,18 +143,17 @@ zschess::Move AutoTrainer::PickMove(zschess::Position& pos, AITier tier) {
     int lv = (int)tier; if (lv < 0) lv = 0; if (lv > 5) lv = 5;
     TierConfig tc = TierToConfig(tier, m_cfg.cfgDepth, m_cfg.cfgTimeMs, m_cfg.cfgThreads);
 
-    // 1) 网络库优先：训练对局用对应等级网络（命中即出棋，无需重算）
+    // 1) 精确着法库优先：相同局面【命中本级库】直接出棋，微秒~毫秒级
     if (m_cfg.trainBook) {
-        float nsc = 0;
-        zschess::Move nbm = zschess::NNLib::instance().PickMove(pos, lv, true, nsc); // 特级优先：防大漏
-        // 长将/长捉防护：连将循环或单子长捉无根子的着法不能用（杀棋除外）
-        if (nbm != zschess::MOVE_NONE && pos.is_legal(nbm)
-            && !CZSAIPlayer::IsLongCheckBlunder(pos, nbm)
-            && !CZSAIPlayer::IsLongChaseBlunder(pos, nbm)) {
-            float red = (pos.side_to_move() == zschess::RED) ? nsc : -nsc;
+        zschess::Move bm; int bsc = 0, bdep = 0;
+        if (zschess::Book::instance().probe_exact(pos.hash(), lv, bm, bsc, bdep)
+            && pos.is_legal(bm)
+            && !CZSAIPlayer::IsLongCheckBlunder(pos, bm)
+            && !CZSAIPlayer::IsLongChaseBlunder(pos, bm)) {
+            // 命中也给本级网络补一个样本（红方视角）
+            float red = (pos.side_to_move() == zschess::RED) ? (float)bsc : -(float)bsc;
             zschess::NNLib::instance().TrainSample(lv, pos, red);
-            //zschess::NNLib::instance().TrainSample(5, pos, red); // 特级不能随便学习低段的结果
-            return nbm;
+            return bm;
         }
     }
 
@@ -171,7 +170,7 @@ zschess::Move AutoTrainer::PickMove(zschess::Position& pos, AITier tier) {
         if (alt != zschess::MOVE_NONE) best = alt;
     }
 
-    // 3) 在线学习：把 (局面, 红方视角分值) 喂给对应等级网络
+    // 3) 在线学习：把 (局面, 红方视角分值) 喂给对应等级网络，并写入精确着法库
     if (m_cfg.trainBook) {
         int sc = zschess::ThreadPool::instance().last_score(); // stm 视角
         if (pos.side_to_move() == zschess::BLACK) sc = -sc;    // 转红方视角
@@ -180,8 +179,9 @@ zschess::Move AutoTrainer::PickMove(zschess::Position& pos, AITier tier) {
         zschess::Position aft = pos;
         if (aft.do_move(best)) {
             zschess::NNLib::instance().TrainSample(lv, aft, (float)sc);
-            //zschess::NNLib::instance().TrainSample(5, aft, (float)sc); // 特级不能随便学习低段的结果
         }
+        // 精确着法库只写当前走棋方等级（红方视角分、请求深度）
+        zschess::Book::instance().add(pos.hash(), lv, best, sc, lim.depth);
     }
 
 	//这里不做低等级扰动了，避免同等级 AI 互相对弈时开局随机扰动导致棋谱不稳定
@@ -433,6 +433,9 @@ void AutoTrainer::PlayOneGame() {
         zschess::NNLib::instance().FlushTrain((int)m_cfg.redTier, 5);
         zschess::NNLib::instance().FlushTrain((int)m_cfg.blackTier, 5);
         zschess::NNLib::instance().SaveAll();
+        // 精确着法库按本局【实际参与等级】落盘（新手vs新手只存 tier0；新手vs特级存 tier0+tier5）
+        zschess::Book::instance().save_tier((int)m_cfg.redTier);
+        zschess::Book::instance().save_tier((int)m_cfg.blackTier);
     }
 
     // ---- 统计 ----

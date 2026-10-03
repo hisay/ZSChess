@@ -158,7 +158,7 @@ namespace zschess {
         150,    // JUN   军
         200,    // XIANG 相
         250,    // SHI   士
-        400,    // MA    马
+        700,    // MA    马
         550,    // PAO   炮（进攻主力）
         400,    // HOU   后（九宫防守子）
         950,    // CHE   车
